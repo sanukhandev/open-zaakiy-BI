@@ -1,0 +1,201 @@
+{
+  "name": "BusinessFlow AI - Agentic RAG Internal Test Gateway (Adapted from 4827)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "businessflow-agentic-rag",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "01-webhook",
+      "name": "Authenticated Internal Chat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "businessflow-agentic-rag-v1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Only a trusted internal caller should reach this authenticated webhook.\n// This is schema validation, NOT tenant authorization or consent verification.\nconst body = $input.first().json.body ?? {};\nconst errors = [];\nconst isId = (v) => typeof v === 'string' && v.length >= 8 && v.length <= 128;\nif (!isId(body.tenantId)) errors.push('tenantId is required');\nif (!isId(body.customerId)) errors.push('customerId is required');\nif (!isId(body.clientMessageId)) errors.push('clientMessageId is required');\nif (body.conversationId !== undefined && body.conversationId !== null && !isId(body.conversationId)) errors.push('conversationId must be an identifier');\nconst text = typeof body.text === 'string' ? body.text.trim() : '';\nif (text.length > 12000) errors.push('text too long');\nconst documentIds = Array.isArray(body.documentIds) ? body.documentIds : [];\nif (!documentIds.every(isId) || documentIds.length > 10) errors.push('invalid documentIds');\nif (!text && documentIds.length === 0) errors.push('text or existing documentIds required');\nreturn [{json: {valid: errors.length === 0, error: {code: 'INVALID_INPUT', details: errors}, payload: {\n  tenantId: body.tenantId, customerId: body.customerId,\n  conversationId: body.conversationId ?? null,\n  clientMessageId: body.clientMessageId, text, documentIds\n}}}];"
+      },
+      "id": "02-validate",
+      "name": "Validate Request Shape",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "is-valid",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "03-if",
+      "name": "Valid Input?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:3000/internal/v1/agentic/turn",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.payload }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "04-delegate",
+      "name": "Delegate to Fastify / LangGraph",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "05-ok",
+      "name": "Respond with Verified Backend Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1150,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {error: $json.error} }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "06-bad",
+      "name": "Respond 400 Invalid Input",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        920,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "content": "OPTIONAL INTERNAL TEST GATEWAY ONLY. The production chat UI must call Fastify directly.\nThe Fastify API owns authentication, tenant permissions, persistence, LangGraph execution, evidence validation, consent and idempotency.\nConfigure BOTH Header Auth credentials after import. The backend URL is a proposed contract, not a verified existing route.\nDo not expose the webhook publicly; do not upload file bytes or secrets here.\nNo WhatsApp, MongoDB, LLM, or short memory lives in n8n.",
+        "height": 240,
+        "width": 500
+      },
+      "id": "07-note",
+      "name": "Security and Deployment Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        230,
+        -40
+      ]
+    }
+  ],
+  "connections": {
+    "Authenticated Internal Chat Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request Shape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request Shape": {
+      "main": [
+        [
+          {
+            "node": "Valid Input?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Input?": {
+      "main": [
+        [
+          {
+            "node": "Delegate to Fastify / LangGraph",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 400 Invalid Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delegate to Fastify / LangGraph": {
+      "main": [
+        [
+          {
+            "node": "Respond with Verified Backend Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none"
+  },
+  "active": false,
+  "pinData": {},
+  "tags": []
+}
