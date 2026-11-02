@@ -1,0 +1,20 @@
+name: Validate Docker Compose
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PostgreSQL bootstrap shell
+        run: bash -n infra/postgres/init/01-create-n8n-db.sh
+      - name: Validate base stack
+        run: |
+          cp .env.example .env
+          docker compose -f docker-compose.yml config --quiet
+      - name: Validate optional app overlay
+        run: docker compose -f docker-compose.yml -f compose.apps.example.yml config --quiet
+      - name: Validate n8n workflow JSON
+        run: python3 -m json.tool n8n/businessflow-n8n-agentic-rag-gateway.json >/dev/null
