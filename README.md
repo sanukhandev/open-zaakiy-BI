@@ -27,6 +27,25 @@ External actions: Fastify outbox -> worker -> n8n -> CRM / notifications
 
 **Do not route production interactive chat through n8n.** Use Fastify as the policy and conversation API; use LangGraph for conversational orchestration; reserve n8n for integrations and an optional sandbox request gateway.
 
+## Docker Compose: local infrastructure
+
+A local development stack is available in [docker-compose.yml](docker-compose.yml) with:
+
+- PostgreSQL 17 + pgvector, with separate app and n8n database users
+- n8n 2.45.7 with a matching isolated task runner
+- SeaweedFS 4.51 for local S3-compatible document storage
+
+```bash
+cp .env.example .env
+# Replace all sample secrets in .env; never commit it.
+docker compose config --quiet
+docker compose up -d
+```
+
+Read [the Docker setup and smoke-test guide](docs/DOCKER-SETUP.md). API, LangGraph and OCR/CRM workers are **not yet implemented**; the optional [application overlay](compose.apps.example.yml) is a deployment contract for future images only. Azure Foundry and Document Intelligence remain externally hosted.
+
+---
+
 ## Repository contents
 
 - [n8n/businessflow-n8n-agentic-rag-gateway.json](n8n/businessflow-n8n-agentic-rag-gateway.json): importable *disabled* internal webhook -> validation -> API request -> response workflow. No WhatsApp, secrets, CRM mutation, or embedded LLM agent.
