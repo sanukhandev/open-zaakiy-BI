@@ -1,0 +1,16 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Local/runtime files
+*.log
+*.pid
+.DS_Store
+node_modules/
+__pycache__/
+.pytest_cache/
+.venv/
